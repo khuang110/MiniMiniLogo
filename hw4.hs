@@ -60,7 +60,15 @@ draw = toHTML . prog
 --   45
 --
 expr :: Expr -> Int
-expr = undefined
+expr (Lit i)    = i
+expr (Add l r)  =  expr l + expr r
+expr (Mul l r)  
+            | expr l == 0    = 0
+            | expr r == 0    = 0
+            | otherwise      = expr r * expr l
+
+
+
 
 
 -- | Semantics of commands. Updates the pen state and possibly returns a line.
@@ -78,7 +86,12 @@ expr = undefined
 --   ((Down,(4,5)),Just ((2,3),(4,5)))
 --
 cmd :: Cmd -> State -> (State, Maybe Line)
-cmd = undefined
+cmd (Move x2 y2) (Down, (x1,y1)) = ((Down, (expr x2, expr y2)), Just ((x1, y1),(expr x2, expr y2)))
+cmd (Move x y) (i, _)           = ((i,(expr x, expr y)), Nothing)
+cmd (Pen i) (_, (x, y))         = ((i,(x, y)), Nothing)
+
+
+
 
 
 -- | Semantics of blocks. Evaluates each command in sequence and accumulates
@@ -91,7 +104,15 @@ cmd = undefined
 --   ((Down,(2,2)),[((0,0),(0,1)),((0,1),(1,1)),((1,1),(1,2)),((1,2),(2,2))])
 --
 block :: Block -> State -> (State, [Line])
-block = undefined
+block [] s = (s, [])
+-- block (x:xs) s = 
+--     let (s2, l) = cmd x s
+--         (s3, l2) = block xs s2
+--     in  (s3, maybe l2 (: l2) l)
+block (x:xs) s = case cmd x s of
+                (s', Nothing) -> block xs s'
+                (s', Just l)  -> (\(s, xs) -> (s, l:xs)) $ block xs s'
+
 
 
 -- | Semantics of programs. Evaluates the main block with the initial pen
@@ -119,5 +140,8 @@ prog p = snd (block p initPen)
 --     move(7, 5)
 --   }
 --
-optimize :: Prog -> Prog
-optimize = undefined
+
+
+-- optimize :: Prog -> Prog
+-- optimize [] = []
+-- optimize (x:xs) = map cmd (block xs)

@@ -1,7 +1,7 @@
 -- Group members:
---  * Name, ID
---  * Name, ID
---  * Name, ID
+--  * Joshua Barringer - 932723347
+--  * Kyle Huang - 933590159
+--  * Bharath Padmaraju - 932522397
 --
 -- Grading notes: 10pts total
 --  * 2pts expr

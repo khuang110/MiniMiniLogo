@@ -105,10 +105,6 @@ cmd (Pen i) (_, (x, y))         = ((i,(x, y)), Nothing)
 --
 block :: Block -> State -> (State, [Line])
 block [] s = (s, [])
--- block (x:xs) s = 
---     let (s2, l) = cmd x s
---         (s3, l2) = block xs s2
---     in  (s3, maybe l2 (: l2) l)
 block (x:xs) s = case cmd x s of
                 (s', Nothing) -> block xs s'
                 (s', Just l)  -> (\(s, xs) -> (s, l:xs)) $ block xs s'
@@ -142,6 +138,6 @@ prog p = snd (block p initPen)
 --
 
 
--- optimize :: Prog -> Prog
--- optimize [] = []
--- optimize (x:xs) = map cmd (block xs)
+optimize :: Prog -> Prog
+optimize [] = []
+optimize (x:xs) = (map cmd xs) $ optimize xs

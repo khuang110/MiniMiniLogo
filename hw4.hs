@@ -86,7 +86,7 @@ expr (Mul l r)
 --   ((Down,(4,5)),Just ((2,3),(4,5)))
 --
 cmd :: Cmd -> State -> (State, Maybe Line)
-cmd (Move x2 y2) (Down, (x1,y1)) = ((Down, (expr x2, expr y2)), Just ((x1, y1),(expr x2, expr y2)))
+cmd (Move x2 y2) (Down, (x1, y1)) = ((Down, (expr x2, expr y2)), Just ((x1, y1),(expr x2, expr y2)))
 cmd (Move x y) (i, _)           = ((i,(expr x, expr y)), Nothing)
 cmd (Pen i) (_, (x, y))         = ((i,(x, y)), Nothing)
 
@@ -107,7 +107,7 @@ block :: Block -> State -> (State, [Line])
 block [] s = (s, [])
 block (x:xs) s = case cmd x s of
                 (s', Nothing) -> block xs s'
-                (s', Just l)  -> (\(s, xs) -> (s, l:xs)) $ block xs s'
+                (s', Just l)  -> (\(state, lineList) -> (state, l:lineList))  (block xs s')
 
 
 
@@ -138,6 +138,3 @@ prog p = snd (block p initPen)
 --
 
 
-optimize :: Prog -> Prog
-optimize [] = []
-optimize (x:xs) = (map cmd xs) $ optimize xs

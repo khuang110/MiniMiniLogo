@@ -118,22 +118,11 @@ prog p = snd (block p initPen)
 
 
 
--- * Helper function to optimize expression
---
---
-optExpr :: Expr -> Expr
-optExpr (Lit l) = Lit l
-optExpr (Add (Lit x) (Lit y)) = Lit (x + y)
-optExpr (Mul (Lit x) (Lit y)) = Lit (x * y)
-optExpr (Add x y) = Add (optExpr x) (optExpr y)
-optExpr (Mul x y) = Mul (optExpr x) (optExpr y)
-
-
 -- * Helper function to optimize command
 --
 optCmd :: Cmd -> Cmd
 optCmd (Pen i) = Pen i
-optCmd (Move x y) = Move (optExpr x) (optExpr y)
+optCmd (Move x y) = Move (Lit (expr x)) (Lit (expr y))
 
 
 
@@ -161,11 +150,3 @@ optimize [] = []
 optimize (x:xs) = optCmd x : optimize xs
                  
     
-    
-    
-    
---    block left right
---             where 
---                 (left, right) = (prog left, )
-                
-

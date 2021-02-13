@@ -119,10 +119,10 @@ prog p = snd (block p initPen)
 
 
 -- * Helper function to optimize command
---
+--  
 optCmd :: Cmd -> Cmd
 optCmd (Pen i) = Pen i
-optCmd (Move x y) = Move (Lit (expr x)) (Lit (expr y))
+optCmd (Move x y) = Move (Lit $ expr x) (Lit $ expr y)
 
 
 

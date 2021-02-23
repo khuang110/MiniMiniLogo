@@ -26,6 +26,8 @@ module HW5 where
 import MiniLogo
 import Render
 
+import Debug.Trace
+
 
 -- Note: in this file, we're placing the AST argument as the *last* argument in
 -- each function, rather than the first argument. Although this makes the
@@ -126,10 +128,9 @@ isInfixOf needle haystack = any (isPrefixOf needle) (tails haystack)
 --   False
 --
 checkExpr :: [Var] -> Expr -> Bool
-checkExpr (x:xs) e = case prettyExpr e of
-                    e' -> e' `isInfixOf` x
--- checkExpr [] (Ref _) = False
--- checkExpr (x:xs) e = case 
+checkExpr (x:xs) e = case xs of
+                  [] -> x `isInfixOf` prettyExpr e
+                  xs' ->  all ( `isInfixOf` prettyExpr e) xs
 
 
 

@@ -74,6 +74,41 @@ check (Program defs main) =
 
 
 
+
+
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+-- Helper Functions
+-- Sourced from Data.Lists
+
+-- isPrefixOf 
+-- Check if given list is at prefix of another
+-- Return true if it is found
+isPrefixOf :: (Eq a) => [a] -> [a] -> Bool
+isPrefixOf [] _ = True
+isPrefixOf _ [] = False
+isPrefixOf (x:xs) (y:ys) = x == y && isPrefixOf xs ys
+
+-- tails
+-- get partial from string
+-- tails "xyz" == ["xyz", "xy", "z",""]
+tails :: [a] -> [[a]]
+tails xs = xs : case xs of 
+                [] -> [] 
+                _  : xs' -> tails xs'
+
+
+-- isInfixOf
+-- Check if list is an infix of another
+isInfixOf :: (Eq a) => [a] -> [a] -> Bool
+isInfixOf needle haystack = any (isPrefixOf needle) (tails haystack)
+
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+
+
+
+
 -- | Statically check that an expression is well formed by checking that there
 --   are no unbound variables. This function receives as an argument a list of
 --   all of the variables that are declared in the scope of the expression.
@@ -91,7 +126,11 @@ check (Program defs main) =
 --   False
 --
 checkExpr :: [Var] -> Expr -> Bool
-checkExpr = undefined
+checkExpr (x:xs) e = case prettyExpr e of
+                    e' -> e' `isInfixOf` x
+-- checkExpr [] (Ref _) = False
+-- checkExpr (x:xs) e = case 
+
 
 
 

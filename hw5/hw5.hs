@@ -26,6 +26,9 @@ module HW5 where
 import MiniLogo
 import Render
 
+
+-----------------------------------------------------------------------------------------------
+-- Remove before submit
 import Debug.Trace
 
 
@@ -109,8 +112,6 @@ isInfixOf needle haystack = any (isPrefixOf needle) (tails haystack)
 --------------------------------------------------------------------------
 
 
-
-
 -- | Statically check that an expression is well formed by checking that there
 --   are no unbound variables. This function receives as an argument a list of
 --   all of the variables that are declared in the scope of the expression.
@@ -191,7 +192,7 @@ checkExpr (x:xs) e = case xs of
 --   True
 --
 checkCmd :: Map Macro Int -> [Var] -> Cmd -> Bool
-checkCmd = undefined
+checkCmd _ [] c = undefined 
 
 
 
@@ -316,7 +317,10 @@ draw p | check p   = toHTML (prog p)
 -- program as a result since we no longer care about the pen state once the
 -- program has completely finished running.
 
-
+find :: Env -> Expr -> Expr
+find ((x, x2):xs) (Ref r) = case lookup r ((x, x2):xs) of
+                            Nothing -> traceShowId (Ref r)
+                            Just r' -> Lit r'
 
 -- | Semantics of expressions.
 --
@@ -329,7 +333,15 @@ draw p | check p   = toHTML (prog p)
 --   39
 --
 expr :: Env -> Expr -> Int
-expr = undefined
+expr (x:xs) (Lit i)  = i
+expr (x:xs) (Add l r)  =  expr (x:xs) r + expr (x:xs) l
+expr (x:xs) (Mul l r)
+            | expr (x:xs) l == 0    = 0
+            | expr (x:xs) r == 0    = 0
+            | otherwise      = expr (x:xs) r * expr (x:xs) l
+expr (x:xs) (Ref r)  = expr (x:xs) $ find (x:xs) (Ref r)
+
+
 
 
 

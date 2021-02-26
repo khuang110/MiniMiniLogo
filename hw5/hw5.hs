@@ -108,6 +108,16 @@ tails xs = xs : case xs of
 isInfixOf :: (Eq a) => [a] -> [a] -> Bool
 isInfixOf needle haystack = any (isPrefixOf needle) (tails haystack)
 
+--- END  Data.List Helpers ---
+
+
+-- find
+-- Find an instance of an Expr in Env
+find :: Env -> Expr -> Expr
+find ((x, x2):xs) (Ref r) = case lookup r ((x, x2):xs) of
+                            Nothing -> Ref r
+                            Just r' -> Lit r'
+
 --------------------------------------------------------------------------
 --------------------------------------------------------------------------
 
@@ -317,10 +327,6 @@ draw p | check p   = toHTML (prog p)
 -- program as a result since we no longer care about the pen state once the
 -- program has completely finished running.
 
-find :: Env -> Expr -> Expr
-find ((x, x2):xs) (Ref r) = case lookup r ((x, x2):xs) of
-                            Nothing -> traceShowId (Ref r)
-                            Just r' -> Lit r'
 
 -- | Semantics of expressions.
 --
@@ -377,16 +383,24 @@ expr (x:xs) (Ref r)  = expr (x:xs) $ find (x:xs) (Ref r)
 --
 --   >>> cmd ms vs (Down,(0,0)) (For "i" (Ref "x") (Lit 1) [Call "line" [Ref "i", Ref "i", Mul (Ref "x") (Ref "i"), Mul (Ref "y") (Ref "i")]])
 --   ((Down,(3,4)),[((3,3),(9,12)),((2,2),(6,8)),((1,1),(3,4))])
+
+optE :: Expr -> Expr
+optE (Ref x) = Ref x 
+optE (Lit x) = Lit x
+optE (Add x y) = Add (optE x) (optE y)
+optE (Mul x y) = Mul (optE x) (optE y)
 --
 cmd :: Macros -> Env -> State -> Cmd -> (State, [Line])
 cmd defs env state@(pen,pos) c = case c of
 
-    Pen Up   -> undefined
-    Pen Down -> undefined
+    Pen Up   -> ((Up , pos), [])
+    Pen Down -> ((Down, pos), [])
 
-    Move xExp yExp -> undefined
+    Move xExp yExp -> case pen of
+                        Down -> ((Down, (expr env xExp, expr env yExp)), [(pos, (expr env xExp, expr env yExp))])
+                        Up   -> ((Up, (expr env xExp, expr env yExp)), [])
 
-    Call macro args -> undefined
+    Call macro args -> cmd defs env state (Call macro (map optE args))
 
     For v fromExp toExp body ->
 

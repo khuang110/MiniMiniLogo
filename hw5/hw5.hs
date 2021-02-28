@@ -389,6 +389,11 @@ optE (Ref x) = Ref x
 optE (Lit x) = Lit x
 optE (Add x y) = Add (optE x) (optE y)
 optE (Mul x y) = Mul (optE x) (optE y)
+
+
+slice :: Int -> Int -> [a] -> [a]
+slice from to xs = take (to - from + 1) (drop from xs)
+
 --
 cmd :: Macros -> Env -> State -> Cmd -> (State, [Line])
 cmd defs env state@(pen,pos) c = case c of
@@ -400,7 +405,9 @@ cmd defs env state@(pen,pos) c = case c of
                         Down -> ((Down, (expr env xExp, expr env yExp)), [(pos, (expr env xExp, expr env yExp))])
                         Up   -> ((Up, (expr env xExp, expr env yExp)), [])
 
-    Call macro args -> cmd defs env state (Call macro (map optE args))
+    Call macro (a:args) -> case traceShowId (lookup macro defs) of  
+                          Just (p : ps, b : bs) -> traceShowId (cmd defs (set p (expr env a) env) state b)
+                          _ ->  cmd defs env state (Pen Up)
 
     For v fromExp toExp body ->
 

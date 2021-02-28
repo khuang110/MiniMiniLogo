@@ -391,6 +391,10 @@ mapEnv :: [Expr] -> [Var] -> Env -> [Int]
 mapEnv [] [] env = []
 mapEnv (a:args) (p:ps) env = traceShowId (map (\x-> expr env x) args)
 
+-- addEnv :: Int -> Env -> Env 
+-- AddEnv i env 
+--         | i > 0 = addEnv (set i )
+
 --
 cmd :: Macros -> Env -> State -> Cmd -> (State, [Line])
 cmd defs env state@(pen,pos) c = case c of
@@ -417,7 +421,7 @@ cmd defs env state@(pen,pos) c = case c of
           -- and fill in the undefined part that runs the body of the loop.
           loopStep :: (State, [Line]) -> Int -> (State, [Line])
           loopStep (s, ls) i =
-            let (s', ls') = cmd defs env s c
+            let (s', ls') = block defs (set "i" i env) s body
             in (s', ls ++ ls')
 
       in foldl loopStep (state, []) ixs

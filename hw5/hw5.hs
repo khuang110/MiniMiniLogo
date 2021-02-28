@@ -115,7 +115,7 @@ isInfixOf needle haystack = any (isPrefixOf needle) (tails haystack)
 -- Find an instance of an Expr in Env
 find :: Env -> Expr -> Expr
 find ((x, x2):xs) (Ref r) = case lookup r ((x, x2):xs) of
-                            Nothing -> Ref r
+                            Nothing -> Lit 0
                             Just r' -> Lit r'
 
 --------------------------------------------------------------------------
@@ -339,14 +339,15 @@ draw p | check p   = toHTML (prog p)
 --   39
 --
 expr :: Env -> Expr -> Int
-expr (x:xs) (Lit i)  = i
-expr (x:xs) (Add l r)  =  expr (x:xs) r + expr (x:xs) l
-expr (x:xs) (Mul l r)
-            | expr (x:xs) l == 0    = 0
-            | expr (x:xs) r == 0    = 0
-            | otherwise      = expr (x:xs) r * expr (x:xs) l
-expr (x:xs) (Ref r)  = expr (x:xs) $ find (x:xs) (Ref r)
-
+expr env (Lit i)  = i
+expr env (Add l r)  =  expr env r + expr env l
+expr env (Mul l r)
+            | expr env l == 0    = 0
+            | expr env r == 0    = 0
+            | otherwise      = expr env r * expr env l
+expr env (Ref r)  = case get r env of
+                        Just r' -> expr env (Lit r')
+                        _ -> expr env (Lit 0)
 
 
 
@@ -384,15 +385,11 @@ expr (x:xs) (Ref r)  = expr (x:xs) $ find (x:xs) (Ref r)
 --   >>> cmd ms vs (Down,(0,0)) (For "i" (Ref "x") (Lit 1) [Call "line" [Ref "i", Ref "i", Mul (Ref "x") (Ref "i"), Mul (Ref "y") (Ref "i")]])
 --   ((Down,(3,4)),[((3,3),(9,12)),((2,2),(6,8)),((1,1),(3,4))])
 
-optE :: Expr -> Expr
-optE (Ref x) = Ref x 
-optE (Lit x) = Lit x
-optE (Add x y) = Add (optE x) (optE y)
-optE (Mul x y) = Mul (optE x) (optE y)
 
-
-slice :: Int -> Int -> [a] -> [a]
-slice from to xs = take (to - from + 1) (drop from xs)
+-- not used --
+mapEnv :: [Expr] -> [Var] -> Env -> [Int]
+mapEnv [] [] env = []
+mapEnv (a:args) (p:ps) env = traceShowId (map (\x-> expr env x) args)
 
 --
 cmd :: Macros -> Env -> State -> Cmd -> (State, [Line])
@@ -405,8 +402,8 @@ cmd defs env state@(pen,pos) c = case c of
                         Down -> ((Down, (expr env xExp, expr env yExp)), [(pos, (expr env xExp, expr env yExp))])
                         Up   -> ((Up, (expr env xExp, expr env yExp)), [])
 
-    Call macro (a:args) -> case traceShowId (lookup macro defs) of  
-                          Just (p : ps, b : bs) -> traceShowId (cmd defs (set p (expr env a) env) state b)
+    Call macro args -> case lookup macro defs of  
+                          Just (ps, bs) -> block [(macro, (ps, bs))] (setAll ps (map (\x-> expr env x) args) env) state bs
                           _ ->  cmd defs env state (Pen Up)
 
     For v fromExp toExp body ->
@@ -420,7 +417,7 @@ cmd defs env state@(pen,pos) c = case c of
           -- and fill in the undefined part that runs the body of the loop.
           loopStep :: (State, [Line]) -> Int -> (State, [Line])
           loopStep (s, ls) i =
-            let (s', ls') = undefined
+            let (s', ls') = cmd defs env s c
             in (s', ls ++ ls')
 
       in foldl loopStep (state, []) ixs

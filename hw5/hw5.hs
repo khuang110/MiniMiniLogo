@@ -79,8 +79,6 @@ check (Program defs main) =
 
 
 
-
-
 --------------------------------------------------------------------------
 --------------------------------------------------------------------------
 -- Helper Functions
@@ -108,15 +106,11 @@ tails xs = xs : case xs of
 isInfixOf :: (Eq a) => [a] -> [a] -> Bool
 isInfixOf needle haystack = any (isPrefixOf needle) (tails haystack)
 
---- END  Data.List Helpers ---
 
-
--- find
--- Find an instance of an Expr in Env
-find :: Env -> Expr -> Expr
-find ((x, x2):xs) (Ref r) = case lookup r ((x, x2):xs) of
-                            Nothing -> Lit 0
-                            Just r' -> Lit r'
+intersperse :: a -> [a] -> [a]
+intersperse _   []     = []
+intersperse _   [h]  = [h]
+intersperse sep (h:t)  = h : sep : intersperse sep t
 
 --------------------------------------------------------------------------
 --------------------------------------------------------------------------
@@ -139,9 +133,10 @@ find ((x, x2):xs) (Ref r) = case lookup r ((x, x2):xs) of
 --   False
 --
 checkExpr :: [Var] -> Expr -> Bool
-checkExpr (x:xs) e = case xs of
+checkExpr [] expr       = False
+checkExpr vars@(x:xs) e = case xs of
                   [] -> x `isInfixOf` prettyExpr e
-                  xs' ->  all ( `isInfixOf` prettyExpr e) xs
+                  (x':_) ->  all ( `isInfixOf` prettyExpr e) vars
 
 
 
@@ -201,9 +196,64 @@ checkExpr (x:xs) e = case xs of
 --   >>> checkCmd [("f",1)] ["x","y"] (For "z" exprXY exprXY [Pen Up, Call "f" [exprXZ]])
 --   True
 --
-checkCmd :: Map Macro Int -> [Var] -> Cmd -> Bool
-checkCmd _ [] c = undefined 
 
+mergeExpr :: [Expr] -> Expr
+mergeExpr []       = Lit 0
+mergeExpr (e:exps) = Add e (mergeExpr exps)
+
+refCount :: Expr -> Int -> Int
+refCount (Lit l) i = i
+refCount (Add l r) i = case (l, r) of 
+                          (_, Ref r1) -> if refCount l i >= 0 then refCount r i+i else i
+                          (Ref r2, _) -> if refCount l i+i >= 0 then refCount r i else i
+                          (_, _)      -> if refCount l i >= 0 then refCount r i else i
+refCount (Mul l r) i = case (l, r) of 
+                          (_, Ref r1) -> if refCount l i >= 0 then refCount r i+i else i
+                          (Ref r2, _) -> if refCount l i+i >= 0 then refCount r i else i
+                          (_, _)      -> if refCount l i >= 0 then refCount r i else i
+refCount (Ref r) i = i + 1
+
+isPen :: Cmd -> Bool
+isPen (Pen Up) = True
+isPen (Pen Down) = True
+isPen _ = False
+
+isMove :: Cmd -> Bool
+isMove (Move l r) = True
+isMove _          = False
+
+intExpToInt :: Expr -> Int
+intExpToInt (Lit expr) = expr 
+
+
+checkCmd :: Map Macro Int -> [Var] -> Cmd -> Bool
+checkCmd defs vars cmd = case cmd of
+    Pen Up                                                             -> length defs == 1
+    Pen Down                                                           -> True
+
+    Move exprX exprY  
+      | null vars && refCount exprX 0 == 1                             -> True
+      | length vars == 3                                               -> checkExpr vars (Add exprX exprY)
+      | refCount exprX 0 == 1 || refCount exprY 0 == 1                 -> False
+      | length vars == 2                                               -> checkExpr vars exprX && checkExpr vars exprY
+      | otherwise                                                      -> False
+
+    Call macro args -> case lookup macro defs of
+                Just m 
+                   | null vars -> m == length args
+                   | length vars == 3                                  -> checkExpr vars (mergeExpr args)
+                   | length vars == (refCount (mergeExpr args)0) -> all (== True) (map (\x -> checkExpr vars x) args)
+                   | False `elem` (map (\x -> checkExpr vars x) args)  -> False
+                   | otherwise                                         -> False 
+                Nothing                                                -> False
+
+    For v fromExp toExp body@(b:bs)
+      | checkBlock defs vars body                             -> True
+
+      | otherwise              -> False 
+
+      
+-- checkCmd [("f",2)] ["x","y"] (Call "f" [exprXY,exprXZ])
 
 
 -- | Statically check whether all of the commands in a block are well formed.
@@ -230,9 +280,21 @@ checkCmd _ [] c = undefined
 --   True
 --
 checkBlock :: Map Macro Int -> [Var] -> Block -> Bool
-checkBlock = undefined
+checkBlock defs vars block_ 
+        | null defs && null vars && null block_                   = True
+        | length vars == length block_                            = True 
+        | all (== True) (map (\x -> checkCmd [] vars x) block_) = True
+        | otherwise                                               = False
 
 
+
+
+-- block :: Macros -> Env -> State -> Block -> (State, [Line])
+-- block defs env state = go state []
+--   where
+--     go s ls []     = (s,ls)
+--     go s ls (c:cs) = let (s',ls') = cmd defs env s c
+--                      in go s' (ls ++ ls') cs
 
 -- | Check whether a macro definition is well formed.
 --
@@ -255,7 +317,7 @@ checkBlock = undefined
 --   True
 --
 checkDef :: Map Macro Int -> Def -> Bool
-checkDef = undefined
+checkDef = undefined 
 
 
 
@@ -384,18 +446,8 @@ expr env (Ref r)  = case get r env of
 --
 --   >>> cmd ms vs (Down,(0,0)) (For "i" (Ref "x") (Lit 1) [Call "line" [Ref "i", Ref "i", Mul (Ref "x") (Ref "i"), Mul (Ref "y") (Ref "i")]])
 --   ((Down,(3,4)),[((3,3),(9,12)),((2,2),(6,8)),((1,1),(3,4))])
-
-
--- not used --
-mapEnv :: [Expr] -> [Var] -> Env -> [Int]
-mapEnv [] [] env = []
-mapEnv (a:args) (p:ps) env = traceShowId (map (\x-> expr env x) args)
-
--- addEnv :: Int -> Env -> Env 
--- AddEnv i env 
---         | i > 0 = addEnv (set i )
-
 --
+
 cmd :: Macros -> Env -> State -> Cmd -> (State, [Line])
 cmd defs env state@(pen,pos) c = case c of
 
@@ -406,7 +458,7 @@ cmd defs env state@(pen,pos) c = case c of
                         Down -> ((Down, (expr env xExp, expr env yExp)), [(pos, (expr env xExp, expr env yExp))])
                         Up   -> ((Up, (expr env xExp, expr env yExp)), [])
 
-    Call macro args -> case lookup macro defs of  
+    Call macro args -> case lookup macro defs of
                           Just (ps, bs) -> block [(macro, (ps, bs))] (setAll ps (map (\x-> expr env x) args) env) state bs
                           _ ->  cmd defs env state (Pen Up)
 

@@ -162,18 +162,11 @@ checkExpr vars (Add l r) = checkExpr vars l && checkExpr vars r
 --
 
 
-
 checkCmd :: Map Macro Int -> [Var] -> Cmd -> Bool
 checkCmd defs vars cmd = case cmd of
-    Pen Up                                                             -> length defs == 1
+    Pen Up                                                             -> True
     Pen Down                                                           -> True
 
-    -- Move exprX exprY  
-    --   | null vars && refCount exprX 0 == 1                             -> True
-    --   | length vars == 3                                               -> checkExpr vars (Add exprX exprY)
-    --   | refCount exprX 0 == 1 || refCount exprY 0 == 1                 -> False
-    --   | length vars == 2                                               -> checkExpr vars exprX && checkExpr vars exprY
-    --   | otherwise                                                      -> False
     Move exprX exprY -> case (checkExpr vars exprX, checkExpr vars exprY) of 
                           (True, True) -> True
                           (_, _) -> False
@@ -184,23 +177,12 @@ checkCmd defs vars cmd = case cmd of
                             | otherwise -> False 
                           Nothing -> False
 
-
-    -- Call macro args -> case lookup macro defs of
-    --             Just m 
-    --                | null vars && m == length args -> True
-    --                | null vars -> m == length args
-    --                | length vars == 3                                  -> checkExpr vars (mergeExpr args)
-    --                | length vars == (refCount (mergeExpr args)0) -> all (== True) (map (\x -> checkExpr vars x) args)
-    --                | False `elem` (map (\x -> checkExpr vars x) args)  -> False
-    --                | otherwise                                         -> False 
-    --             Nothing                                                -> False
-
     For v fromExp toExp body@(b:bs)
+      | not (checkExpr (v:vars) fromExp) -> False
+      | not (checkExpr (v:vars) toExp)   -> False
       | checkBlock defs (v:vars) body -> True
       | otherwise                -> False 
 
-      
--- checkCmd [("f",2)] ["x","y"] (Call "f" [exprXY,exprXZ])
 
 
 -- | Statically check whether all of the commands in a block are well formed.

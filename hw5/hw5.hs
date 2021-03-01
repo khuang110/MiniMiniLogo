@@ -237,8 +237,10 @@ checkBlock defs vars block_
 --   True
 --
 checkDef :: Map Macro Int -> Def -> Bool
-checkDef defs macro = undefined 
-
+checkDef [] macro = case macro of
+                      Define def vars block_ -> checkBlock (set def (length vars) []) vars block_
+checkDef defs macro = case macro of
+                      Define def vars block_ -> checkBlock defs vars block_
 
 
 --

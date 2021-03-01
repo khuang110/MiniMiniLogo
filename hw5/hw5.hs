@@ -79,43 +79,6 @@ check (Program defs main) =
 
 
 
---------------------------------------------------------------------------
---------------------------------------------------------------------------
--- Helper Functions
--- Sourced from Data.Lists
-
--- isPrefixOf 
--- Check if given list is at prefix of another
--- Return true if it is found
-isPrefixOf :: (Eq a) => [a] -> [a] -> Bool
-isPrefixOf [] _ = True
-isPrefixOf _ [] = False
-isPrefixOf (x:xs) (y:ys) = x == y && isPrefixOf xs ys
-
--- tails
--- get partial from string
--- tails "xyz" == ["xyz", "xy", "z",""]
-tails :: [a] -> [[a]]
-tails xs = xs : case xs of 
-                [] -> [] 
-                _  : xs' -> tails xs'
-
-
--- isInfixOf
--- Check if list is an infix of another
-isInfixOf :: (Eq a) => [a] -> [a] -> Bool
-isInfixOf needle haystack = any (isPrefixOf needle) (tails haystack)
-
-
-intersperse :: a -> [a] -> [a]
-intersperse _   []     = []
-intersperse _   [h]  = [h]
-intersperse sep (h:t)  = h : sep : intersperse sep t
-
---------------------------------------------------------------------------
---------------------------------------------------------------------------
-
-
 -- | Statically check that an expression is well formed by checking that there
 --   are no unbound variables. This function receives as an argument a list of
 --   all of the variables that are declared in the scope of the expression.
@@ -132,14 +95,15 @@ intersperse sep (h:t)  = h : sep : intersperse sep t
 --   >>> checkExpr ["x","y"] exprXZ
 --   False
 --
+printRef :: Expr -> Var
+printRef (Ref r) =  r
+
+
 checkExpr :: [Var] -> Expr -> Bool
-checkExpr [] expr       = False
-checkExpr vars@(x:xs) e = case xs of
-                  [] -> x `isInfixOf` prettyExpr e
-                  (x':_) ->  all ( `isInfixOf` prettyExpr e) vars
-
-
-
+checkExpr vars (Lit _)   = True
+checkExpr vars (Ref r)   = printRef (Ref r) `elem` vars
+checkExpr vars (Mul l r) = checkExpr vars l && checkExpr vars r
+checkExpr vars (Add l r) = checkExpr vars l && checkExpr vars r
 
 -- | Statically check that a command is well formed by: (1) checking whether
 --   all expressions it contains are well formed, (2) checking whether every
@@ -197,33 +161,6 @@ checkExpr vars@(x:xs) e = case xs of
 --   True
 --
 
-mergeExpr :: [Expr] -> Expr
-mergeExpr []       = Lit 0
-mergeExpr (e:exps) = Add e (mergeExpr exps)
-
-refCount :: Expr -> Int -> Int
-refCount (Lit l) i = i
-refCount (Add l r) i = case (l, r) of 
-                          (_, Ref r1) -> if refCount l i >= 0 then refCount r i+i else i
-                          (Ref r2, _) -> if refCount l i+i >= 0 then refCount r i else i
-                          (_, _)      -> if refCount l i >= 0 then refCount r i else i
-refCount (Mul l r) i = case (l, r) of 
-                          (_, Ref r1) -> if refCount l i >= 0 then refCount r i+i else i
-                          (Ref r2, _) -> if refCount l i+i >= 0 then refCount r i else i
-                          (_, _)      -> if refCount l i >= 0 then refCount r i else i
-refCount (Ref r) i = i + 1
-
-isPen :: Cmd -> Bool
-isPen (Pen Up) = True
-isPen (Pen Down) = True
-isPen _ = False
-
-isMove :: Cmd -> Bool
-isMove (Move l r) = True
-isMove _          = False
-
-intExpToInt :: Expr -> Int
-intExpToInt (Lit expr) = expr 
 
 
 checkCmd :: Map Macro Int -> [Var] -> Cmd -> Bool
@@ -231,26 +168,36 @@ checkCmd defs vars cmd = case cmd of
     Pen Up                                                             -> length defs == 1
     Pen Down                                                           -> True
 
-    Move exprX exprY  
-      | null vars && refCount exprX 0 == 1                             -> True
-      | length vars == 3                                               -> checkExpr vars (Add exprX exprY)
-      | refCount exprX 0 == 1 || refCount exprY 0 == 1                 -> False
-      | length vars == 2                                               -> checkExpr vars exprX && checkExpr vars exprY
-      | otherwise                                                      -> False
+    -- Move exprX exprY  
+    --   | null vars && refCount exprX 0 == 1                             -> True
+    --   | length vars == 3                                               -> checkExpr vars (Add exprX exprY)
+    --   | refCount exprX 0 == 1 || refCount exprY 0 == 1                 -> False
+    --   | length vars == 2                                               -> checkExpr vars exprX && checkExpr vars exprY
+    --   | otherwise                                                      -> False
+    Move exprX exprY -> case (checkExpr vars exprX, checkExpr vars exprY) of 
+                          (True, True) -> True
+                          (_, _) -> False
 
-    Call macro args -> case lookup macro defs of
-                Just m 
-                   | null vars -> m == length args
-                   | length vars == 3                                  -> checkExpr vars (mergeExpr args)
-                   | length vars == (refCount (mergeExpr args)0) -> all (== True) (map (\x -> checkExpr vars x) args)
-                   | False `elem` (map (\x -> checkExpr vars x) args)  -> False
-                   | otherwise                                         -> False 
-                Nothing                                                -> False
+    Call macro args@(a:as) -> case lookup macro defs of
+                          Just m 
+                            | m == length args || m == 0 -> all (== True) (map (\x -> checkExpr vars x) args)
+                            | otherwise -> False 
+                          Nothing -> False
+
+
+    -- Call macro args -> case lookup macro defs of
+    --             Just m 
+    --                | null vars && m == length args -> True
+    --                | null vars -> m == length args
+    --                | length vars == 3                                  -> checkExpr vars (mergeExpr args)
+    --                | length vars == (refCount (mergeExpr args)0) -> all (== True) (map (\x -> checkExpr vars x) args)
+    --                | False `elem` (map (\x -> checkExpr vars x) args)  -> False
+    --                | otherwise                                         -> False 
+    --             Nothing                                                -> False
 
     For v fromExp toExp body@(b:bs)
-      | checkBlock defs vars body                             -> True
-
-      | otherwise              -> False 
+      | checkBlock defs (v:vars) body -> True
+      | otherwise                -> False 
 
       
 -- checkCmd [("f",2)] ["x","y"] (Call "f" [exprXY,exprXZ])
@@ -282,19 +229,10 @@ checkCmd defs vars cmd = case cmd of
 checkBlock :: Map Macro Int -> [Var] -> Block -> Bool
 checkBlock defs vars block_ 
         | null defs && null vars && null block_                   = True
-        | length vars == length block_                            = True 
-        | all (== True) (map (\x -> checkCmd [] vars x) block_) = True
+        | all (== True) (map (\x -> checkCmd defs vars x) block_) = True
         | otherwise                                               = False
 
 
-
-
--- block :: Macros -> Env -> State -> Block -> (State, [Line])
--- block defs env state = go state []
---   where
---     go s ls []     = (s,ls)
---     go s ls (c:cs) = let (s',ls') = cmd defs env s c
---                      in go s' (ls ++ ls') cs
 
 -- | Check whether a macro definition is well formed.
 --
@@ -317,7 +255,7 @@ checkBlock defs vars block_
 --   True
 --
 checkDef :: Map Macro Int -> Def -> Bool
-checkDef = undefined 
+checkDef defs macro = undefined 
 
 
 
